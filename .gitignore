@@ -1,0 +1,18 @@
+# History and RStudio files
+.Rhistory
+.Rapp.history
+.RData
+.Rproj.user
+.Rproj.user/
+.httr-oauth*
+# produced vignettes
+vignettes/*.html
+vignettes/*.pdf
+# README htmls in any folder
+README.html
+# The devtools zip is downloaded when the package is updating itself.  If it's not deleted, there's no reason to commit it to the repository.
+devtools.zip
+# Certain csv files
+/unshared/*
+unshared/unshared.csv
+
