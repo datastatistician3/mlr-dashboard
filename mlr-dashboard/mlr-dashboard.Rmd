@@ -38,14 +38,16 @@ opts_chunk$set(
 echo_chunks    <- FALSE #Toggle for debugging.
 message_chunks <- FALSE #Toggle for debugging.
 options(width=100) #So the output is 25% wider than the default.
-read_chunk('./app.R')
 ```
 
+<!-- read_chunk('./app.R') -->
+
+
 ```{r}
-datasets <- list(
-  'none'=NULL,
-  'iris'=iris,
-  'cars'=mtcars,
+datasetss <- list(
+  'none'= NULL,
+  'iris'= datasets::iris,
+  'cars'= datasets::mtcars,
   'diamonds'= ggplot2::diamonds,
   'Boston'=MASS::Boston
   # 'leaf'=leaf
@@ -114,7 +116,7 @@ library(magrittr)
 
 #### Data Input
 ```{r}
-selectInput('dataset',label = 'Choose Dataset',choices = names(datasets),selected='none')
+selectInput('dataset',label = 'Choose Dataset',choices = names(datasetss),selected='none')
 fileInput('fileIn',label = 'Upload Data')
 actionButton('btn_viewData',label = 'View Data',icon=icon('table'), width = '100%')
 shiny::tags$br()
@@ -134,7 +136,7 @@ rawdata <- reactive({
         sep = ','
       )
   } else {
-    datasets[[input$dataset]]
+    datasetss[[input$dataset]]
   }
 })
 
@@ -164,18 +166,18 @@ bsModal('data',title = 'Dataset',trigger = 'btn_viewData',size = 'large',renderD
 #       choices  = names(rawdata())[!names(rawdata()) %in% input$yvar],
 #       selected = names(rawdata())[!names(rawdata()) %in% input$yvar][1])
 #   })
-reactive({
+# reactive({
   observeEvent(input$dataset, {
    updateSelectizeInput(session,'yvar',choices=names(rawdata()),selected = names(rawdata())[1])
-})
+# })
 })
 
-reactive({
+# reactive({
 observeEvent(input$yvar, {
   nms <- names(rawdata())[names(rawdata())!=input$yvar]
   updateSelectizeInput(session,'xvar',choices=nms,selected = nms)
 })
-})
+# })
 ```
 
 
@@ -233,7 +235,7 @@ observeEvent(input$yvar, {
 
 #### Model Options
 ```{r}
-sliderInput('sld_testsplit',label = 'Test set %','lbl_testsplit',min = 33,max = 90,step = 1,value = 33)
+sliderInput('sld_testsplit',label = 'Test Set %','lbl_testsplit',min = 33,max = 90,step = 1,value = 33)
 selectInput('slt_algo',label = 'Algorithm',choices = reg.mdls,selected = reg.mdls,multiple=T)
 selectizeInput('slt_Tune','Parameter Tuning',choices = c('Coarse auto-tune (fast)','Fine auto-tune (slow)','manual'))
 radioButtons('rdo_CVtype',label = 'Cross-validation Folds',choices = c('3-fold'=3,'5-fold'=5,'10-fold'=10),inline = T)
@@ -255,10 +257,32 @@ selectInput('slt_algo',label = 'Algorithm',choices = reg.mdls,selected = reg.mdl
 #   df2
 # })
 
-renderDataTable({
- df2
-})
+# renderDataTable({
+#  rawdata()
+# })
 
+renderDataTable({
+  # y <- input$yvar
+  X <- input$xvar
+  testsize <- input$sld_testsplit
+
+  ds <- rawdata()
+  df2 <- ds[,y]
+  df2
+})
+  # renderText({
+  #   input$yvar
+  #   unlist(stringr::str_split(input$xvar, pattern = " "))
+  # })
+  
+  # trainIndex <- caret::createDataPartition(df$y,
+  #                                   p = 1-(testsize/100),
+  #                                   list = FALSE,
+  #                                   times = 1)
+  # dataTrain <<- df2[ trainIndex,]
+  # dataTest  <<- df2[-trainIndex,]
+
+# })
 
 # renderPlot({
 #   hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$sld_testsplit),
