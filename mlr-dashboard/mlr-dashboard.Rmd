@@ -17,6 +17,7 @@ runtime: shiny
 library(knitr)
 library(flexdashboard)
 library(shiny)
+library(caret)
 opts_knit$set(root.dir='./../')  #Don't combine this call with any other chunk -especially one that uses file paths.
 ```
 
@@ -38,9 +39,9 @@ opts_chunk$set(
 echo_chunks    <- FALSE #Toggle for debugging.
 message_chunks <- FALSE #Toggle for debugging.
 options(width=100) #So the output is 25% wider than the default.
+read_chunk('./app.R')
 ```
 
-<!-- read_chunk('./app.R') -->
 
 
 ```{r}
@@ -48,7 +49,7 @@ datasetss <- list(
   'none'= NULL,
   'iris'= datasets::iris,
   'cars'= datasets::mtcars,
-  'diamonds'= ggplot2::diamonds,
+  # 'diamonds'= ggplot2::diamonds,
   'Boston'=MASS::Boston
   # 'leaf'=leaf
   # 'midwest'=data.frame(midwest),
@@ -57,18 +58,30 @@ datasetss <- list(
   # 'txhousing'=data.frame(txhousing)
 )
 
-mdls <- list('svmLinear'='svmLinear',
-             'svmPoly'='svmPoly',
-             'Neural Network'='nnet',
-             'randomForest'='rf',
-             'k-NN'='knn',
-             'Naive Bayes'='nb',
-             'GLM'='glm',
-             'GAM'='gam')
+tuneParams <- list(
+  # 'svmLinear'=data.frame(C=c(0.01,0.1,1)),
+  # 'svmPoly'= expand.grid(degree=1:3,scale=c(0.01,0.1),C=c(0.25,0.5,1)),
+  'nnet'=expand.grid(size=c(1,3,5),decay=c(0.01,0.1,1)),
+  'rf'=data.frame(mtry=c(2,3,4)),
+  'knn'=data.frame(k=c(1,3,5,7,9))
+  # 'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1)),
+  # 'glm'=NULL#data.frame()
+)
+
+mdls <- list(
+  # 'svmLinear'='svmLinear',
+  #  'svmPoly'='svmPoly',
+   'Neural Network'='nnet',
+   'randomForest'='rf',
+   'k-NN'='knn',
+   'Naive Bayes'='nb'
+   # 'GLM'='glm',
+   # 'GAM'='gam'
+  )
 
 mdli <- list(
-  'Regression'=c(T,T,T,T,T,F,T,F),
-  'Classification'=c(T,T,T,T,T,T,F,F)
+  'Regression'=c(T,T,T,F),
+  'Classification'=c(T,T,T,T)
 )  
 
 reg.mdls <- mdls[mdli[['Regression']]]
@@ -121,8 +134,8 @@ fileInput('fileIn',label = 'Upload Data')
 actionButton('btn_viewData',label = 'View Data',icon=icon('table'), width = '100%')
 shiny::tags$br()
 shiny::tags$br()
-selectizeInput('yvar',label='y (Choose Outcome Variable)',choices = character(0))
-selectizeInput('xvar',label='X (Select Predictor Variables)',choices = character(0),multiple = T)
+# selectizeInput('yvar',label='y (Choose Outcome Variable)',choices = character(0))
+# selectizeInput('xvar',label='X (Select Predictor Variables)',choices = character(0),multiple = T)
 
 ```
 
@@ -142,105 +155,182 @@ rawdata <- reactive({
 
 bsModal('data',title = 'Dataset',trigger = 'btn_viewData',size = 'large',renderDataTable({rawdata()}))
 
-# renderUI({
-#   df <- rawdata()
-#   if (is.null(df)) return(NULL)
-# 
-#   items=names(df)
-#   names(items)=items
-#   selectInput(
-#     inputId = "yvar",
-#     label = "y (Choose Outcome Variable)",
-#     choices = items)
-# })
-# 
-# renderUI({
-#     df <- rawdata()
-#     if (is.null(df)) return(NULL)
-# 
-#     items=names(df)
-#     names(items)=items
-#     selectInput(
-#       inputId = "xvar",
-#       label = "X (Select Predictor Variables)",
-#       choices  = names(rawdata())[!names(rawdata()) %in% input$yvar],
-#       selected = names(rawdata())[!names(rawdata()) %in% input$yvar][1])
-#   })
-# reactive({
-  observeEvent(input$dataset, {
-   updateSelectizeInput(session,'yvar',choices=names(rawdata()),selected = names(rawdata())[1])
-# })
+renderUI({
+  df <- rawdata()
+  if (is.null(df)) return(NULL)
+
+  items=names(df)
+  names(items)=items
+  selectInput(
+    inputId = "yvar",
+    label = "y (Choose Outcome Variable)",
+    choices = items)
 })
 
-# reactive({
+renderUI({
+    df <- rawdata()
+    if (is.null(df)) return(NULL)
+
+    items=names(df)
+    names(items)=items
+    selectInput(
+      inputId = "xvar",
+      label = "X (Select Predictor Variables)",
+      multiple = T,
+      choices  = names(rawdata())[!names(rawdata()) %in% input$yvar],
+      selected = names(rawdata())[!names(rawdata()) %in% input$yvar][1])
+  })
+
+reactive({
+  observeEvent(input$dataset, {
+   updateSelectizeInput(session,'yvar',choices=names(rawdata()),selected = names(rawdata())[1])
+})
+})
+
+reactive({
+  observeEvent(input$fileIn, {
+   updateSelectizeInput(session,'yvar',choices=names(rawdata()),selected = names(rawdata())[1])
+})
+})
+
+reactive({
 observeEvent(input$yvar, {
   nms <- names(rawdata())[names(rawdata())!=input$yvar]
   updateSelectizeInput(session,'xvar',choices=nms,selected = nms)
 })
-# })
+})
+
+
+dataTrain <- NULL
+dataTest <- NULL
+
+makeReactiveBinding('dataTrain')
+makeReactiveBinding('dataTest')
+
+observeEvent(input$rdo_model_type,{
+  
+  if(input$rdo_model_type=='Regression'){
+    updateSelectizeInput(session,'slt_algo',choices = reg.mdls,selected = reg.mdls)
+  } else {
+    updateSelectizeInput(session,'slt_algo',choices = cls.mdls,selected = cls.mdls)
+    
+  }
+})
+
+observe({
+    
+    yvar <- input$yvar
+    xvars <- input$xvar
+    testsize <- input$sld_testsplit
+    
+    if(is.null(yvar)||yvar=='')
+      return(NULL)
+    
+    # extract y and X from raw data
+    y <- isolate(rawdata()[,yvar])
+    X <-  isolate(rawdata()[,xvars])
+    
+    # deal with NA values
+    yi <- !is.na(y)
+    Xi <- complete.cases(X)
+    
+    df2 <- as.data.frame(cbind(y,X)[yi&Xi,])
+
+    trainIndex <- caret::createDataPartition(df2$y,
+                                      p = 1-(testsize/100),
+                                      list = FALSE,
+                                      times = 1)
+    isolate({
+      dataTrain <<- df2[ trainIndex,]
+      dataTest  <<- df2[-trainIndex,]
+    })
+  })
+
+
+observeEvent(input$btn_train,{
+    
+    disable('btn_train')
+    on.exit(enable('btn_train'))
+    
+    mdls <- isolate(input$slt_algo)
+    
+    fitControl <- caret::trainControl(method = "cv",savePredictions = T,
+                               number = as.integer(input$rdo_CVtype))
+    
+    trainArgs <- list(
+      # 'svmLinear'=list(form=y ~ .,
+      #                  data = dataTrain,
+      #                  preProcess = c('scale','center'),
+      #                  method = 'svmLinear',
+      #                  trControl = fitControl,
+      #                  tuneGrid=tuneParams[['svmLinear']]),
+      # 'svmPoly'= list(form=y ~ .,
+      #                 data = dataTrain,
+      #                 preProcess = c('scale','center'),
+      #                 method = 'svmPoly',
+      #                 trControl = fitControl,
+      #                 tuneGrid=tuneParams[['svmPoly']]),
+      'nnet'=list(form=y ~ .,
+                  data = dataTrain,
+                  preProcess = c('scale','center'),
+                  method = 'nnet',
+                  trControl = fitControl,
+                  tuneGrid=tuneParams[['nnet']],
+                  linout=T),
+      'rf'=list(form=y ~ .,
+                data = dataTrain,
+                preProcess = c('scale','center'),
+                method = 'rf',
+                trControl = fitControl,
+                tuneGrid=tuneParams[['rf']],
+                ntree=1e3),
+      'knn'=list(form=y ~ .,
+                 data = dataTrain,
+                 preProcess = c('scale','center'),
+                 method = 'knn',
+                 trControl = fitControl,
+                 tuneGrid=tuneParams[['knn']]),
+      'nb'=list(form=y ~ .,
+                data = dataTrain,
+                preProcess = c('scale','center'),
+                method = 'nb',
+                trControl = fitControl,
+                tuneGrid=tuneParams[['nb']])
+      # 'glm'=list(form=y ~ .,
+      #            data = dataTrain,
+      #            preProcess = c('scale','center'),
+      #            method = 'glm',
+      #            trControl = fitControl,
+      #            tuneGrid=NULL),
+      # 'gam'=list(form=y ~ .,
+      #            data = dataTrain,
+      #            preProcess = c('scale','center'),
+      #            method = 'gam',
+      #            trControl = fitControl)
+    )
+    
+    tune <- lapply(mdls,function(m){
+      do.call('train',trainArgs[[m]])
+    })
+    
+    names(tune) <- mdls
+    CVtune <<- tune
+    # saveRDS(CVtune,'initState.Rdata')
+  })
+
 ```
-
-
-
-```{r}
-# reactive({
-#   if (is.null(rawdata())) return(NULL)
-#   ds <- rawdata()
-#   # yvar <- input$yvar
-#   # xvars <- input$xvar
-#   testsize <- input$sld_testsplit
-# 
-#   model_variables <- c(input$xvar,input$yvar)
-# 
-#   # if(is.null(yvar)||yvar=='')
-#   #   return(NULL)
-# 
-#   # # extract y and X from raw data
-#   # y <- rawdata()[,yvar]
-#   # X <- rawdata()[,xvars]
-#   #
-#   # # deal with NA values
-#   # yi <- !is.na(y)
-#   # Xi <- complete.cases(X)
-#   #
-#   df0 <- ds[model_variables]
-# 
-#   df2 <- df0[complete.cases(df0),]
-# 
-# 
-# 
-#   # lvls <- length(unique(df2$y))
-#   # if(lvls<10|(class(df2$y) !='numeric'& class(df2$y) !='integer')){
-#   #   modelType <<-'Classification'
-#   #   df2$y <- factor(df2$y)
-#   # } else {
-#   #   modelType <<-'Regression'
-#   #   if(input$chk_logY){df2$y <- log(df2$y+0.1)}
-#   # }
-# 
-#   # trainIndex <- caret::createDataPartition(df2$yvar,
-#   #                                   p = 1-(testsize/100),
-#   #                                   list = FALSE,
-#   #                                   times = 1)
-#   #   dataTrain <<- df2[ trainIndex,]
-#   #   dataTest  <<- df2[-trainIndex,]
-# 
-# 
-# })
-```
-
-
-
 
 
 #### Model Options
 ```{r}
 sliderInput('sld_testsplit',label = 'Test Set %','lbl_testsplit',min = 33,max = 90,step = 1,value = 33)
+radioButtons('rdo_model_type',label = 'Model Type',choices = c('Regression'= "Regression",'Classification'= "Classification"),inline = T)
 selectInput('slt_algo',label = 'Algorithm',choices = reg.mdls,selected = reg.mdls,multiple=T)
 selectizeInput('slt_Tune','Parameter Tuning',choices = c('Coarse auto-tune (fast)','Fine auto-tune (slow)','manual'))
 radioButtons('rdo_CVtype',label = 'Cross-validation Folds',choices = c('3-fold'=3,'5-fold'=5,'10-fold'=10),inline = T)
                                          
 actionButton('btn_train',label = 'Train Models',icon = icon('cogs'),class='btn-success fa-lg',width='100%')
+
 ```
 
 
@@ -252,43 +342,9 @@ selectInput('slt_algo',label = 'Algorithm',choices = reg.mdls,selected = reg.mdl
 # Data Summary
 ```{r spaghetti, echo=echo_chunks, message=message_chunks, results='asis', fig.height=8, fig.width=20}
 
-  # bsModal('data1',title = 'Dataset1',trigger = 'btn_viewData',size = 'large',renderDataTable({rawdata()}))
-# renderDataTable({
-#   df2
-# })
-
-# renderDataTable({
-#  rawdata()
-# })
-
-renderDataTable({
-  # y <- input$yvar
-  X <- input$xvar
-  testsize <- input$sld_testsplit
-
-  ds <- rawdata()
-  df2 <- ds[,y]
-  df2
+DT::renderDataTable({
+dataTest
 })
-  # renderText({
-  #   input$yvar
-  #   unlist(stringr::str_split(input$xvar, pattern = " "))
-  # })
-  
-  # trainIndex <- caret::createDataPartition(df$y,
-  #                                   p = 1-(testsize/100),
-  #                                   list = FALSE,
-  #                                   times = 1)
-  # dataTrain <<- df2[ trainIndex,]
-  # dataTest  <<- df2[-trainIndex,]
-
-# })
-
-# renderPlot({
-#   hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$sld_testsplit),
-#        xlab = "Duration (minutes)", main = "Geyser Eruption Duration")
-# })
-
 ```
 
 # Training Models {.tabset data-width=300}
@@ -298,7 +354,9 @@ renderDataTable({
 ### CV Model Rank
 
 ```{r echo=echo_chunks, message=message_chunks}
-
+DT::renderDataTable({
+dataTest
+})
 ```
 
 ### CV Preds Vs. Obs
