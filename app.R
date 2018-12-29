@@ -140,69 +140,59 @@ tune <- lapply(mdls,function(m){
   do.call('train',trainArgs[[m]])
 })
 
-get_fits <- list()
-one_fit <- list()
 
-for (i in names(tune)){
-  one_fit <- tune[[i]]$results
-  # two_fit <- one_fit[(ncol(one_fit)-3):ncol(one_fit)]
-  tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T)
-  get_fits <- rbind(get_fits,one_fit)
-}
+fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
 
+list_df <- (purrr::map(tune, 'results'))
 
-
-fit_names <- names(one_fit)[(ncol(one_fit)-5):ncol(one_fit)]
-
-df %>% 
-  dplyr::select(model, dplyr::everything()) %>% 
-  tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T)
-
-names(tune)
+train_fit_summary <- list_df %>% 
+  map2_df(names(tune),~mutate(.x,name=.y)) %>% 
+  dplyr::select(name, everything()) %>% 
+  tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
+  dplyr::mutate(Model = str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
+  dplyr::mutate(rank = dplyr::dense_rank(Rsquared)) %>% 
+  dplyr::arrange(rank) %>% 
+  dplyr::select(rank, dplyr::everything())
 
 
+best_pred_df <- (purrr::map(tune, 'bestTune')) %>% 
+  map2_df(names(tune),~mutate(.x,name=.y)) %>% 
+  dplyr::select(name, everything()) %>% 
+  tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
+  dplyr::mutate(Model = str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
 
 
+pred_names <- c('pred','obs', 'rowIndex','Resample')
+list_pred_df <- (purrr::map(tune, 'pred'))
 
-one_fit <- tune[[i]]$results
-# two_fit <- one_fit[(ncol(one_fit)-3):ncol(one_fit)]
-tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T)
-get_fits <- rbind(get_fits,one_fit)
-
-
-
-
-
-
+train_pred_summary <- list_pred_df %>%
+  map2_df(names(tune),~mutate(.x,name=.y)) %>%
+  dplyr::select(name, everything()) %>%
+  tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
+  dplyr::mutate(Model = str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+  dplyr::inner_join(best_pred_df, by = "Model")
 
 
-tune$svmLinear$results
-df <- tune$svmPoly$results
-df$model <- names(tune)[1]
-
-
-
-
-
-tune$`Neural Network`$results
-df <- tune$`k-NN`$results
-df[1:(ncol(df)-4)]
-
-df[(ncol(df)-3):ncol(df)]
-
-
-library(magrittr)
-
-getRes <- function(i){
-    name <- names(tune)[i]
-    res <- tune[[i]]$results
-    df <- res[(ncol(res)-3):ncol(res)]
-    apply(res,1,function(r) paste(r[1:(ncol(res)-4)],collapse = '-')) %>% 
-      paste(name,.,sep='-') -> model
-    cbind.data.frame(model,df,name=name[[1]],stringsAsFactors =F)
-  }
-    
-    df <- plyr::ldply(1:length(tune),getRes)
+# 
+# test_result <- lapply(mdls,function(m){
+#   do.call('train',trainArgs[[m]])
+# })
+# 
+# 
+# test_models <- lapply(mdls,function(m){
+#   do.call('test',trainArgs[[m]])
+# })
+# 
+# 
+# tune$svmPoly$finalModel
+# 
+# tune$svmPoly$bestTune
+# 
+# 
+# lapply(CVtune[input$slt_Finalalgo],
+#        predict.train,isolate(dataTest)) %>% 
+#   data.frame() -> df
+# 
 
 
 
@@ -218,18 +208,143 @@ getRes <- function(i){
 
 
 
-do.call(caret::train(mdls, trainArgs[[1]]))
-
-caret::train(trainArgs[[1]], mdls)
-
-
-library(caret)
-do.call('train',trainArgs[[1]])
-
-do.call('caret::train()', trainArgs[[1]])
 
 
 
 
-names(tune) <- mdls
-CVtune <<- tune
+
+
+
+
+
+
+
+
+
+
+
+# 
+# 
+# 
+# 
+# 
+# get_fits <- list()
+# one_fit <- list()
+# 
+# for (i in names(tune)){
+#   one_fit <- tune[[i]]$results
+#   # two_fit <- one_fit[(ncol(one_fit)-3):ncol(one_fit)]
+#   tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T)
+#   get_fits <- rbind(get_fits,one_fit)
+# }
+# 
+# 
+# 
+# 
+# df %>% 
+#   dplyr::select(model, dplyr::everything()) %>% 
+#   tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T)
+# 
+# names(tune)
+# 
+# 
+# 
+# 
+# 
+# one_fit <- tune[['svmLinear']]$results
+# # two_fit <- one_fit[(ncol(one_fit)-3):ncol(one_fit)]
+# one_fit %>% 
+# tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T)
+# 
+# get_fits <- rbind(get_fits,one_fit)
+# 
+# 
+# 
+# 
+# names(tune)
+# 
+# tune %>% 
+#   map('')
+# 
+# purrr::map(tune, 'results') %>% 
+#   dplyr::mutate_(mtry = map(.,2))
+#   
+#   
+# purrr::map2_df(tune, names(tune), ~ dplyr::mutate(.x, ID = .y))
+#   
+#   dplyr::mutate( Model = purrr::map(tidyr::unite_(names(.)[!names(.) %in% fit_names], sep='-', remove=T)))
+# 
+# 
+# 
+# list_df <- (purrr::map(tune, 'results'))
+# 
+# 
+# 
+# library(tidyverse)
+# df <- data_frame(one = rep("hey", 10), two = seq(1:10), etc = "etc")
+# 
+# list_df <- list(df, df, df[1:7,], df, df[1:4,])
+# dfnames <- c("first", "second", "third", "fourth", "fifth")
+# 
+# list_df %>% map2_df(names(tune),~mutate(.x,name=.y)) %>% 
+#   dplyr::select(name, everything()) %>% 
+#   tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
+#   dplyr::mutate(Model = str_replace_all(Model, "-NA|-NA-|NA-|NA", ""))
+# 
+# 
+# purrr::map(tune, 'results') 
+# 
+# 
+# %>% 
+#   purrr::map2_df(names(tune), ~mutate(.x, name = .y))
+# 
+# 
+# 
+# fruits <- c("oneapple-NA", "twopears-NA-NA", "three-NA-bananas")
+# str_replace_all(fruits, "-NA|-NA-|NA-|NA", "")
+# 
+# 
+# 
+# tune$svmLinear$results
+# df <- tune$svmPoly$results
+# df$model <- names(tune)[1]
+# 
+# 
+# 
+# 
+# 
+# tune$`Neural Network`$results
+# df <- tune$`k-NN`$results
+# df[1:(ncol(df)-4)]
+# 
+# df[(ncol(df)-3):ncol(df)]
+# 
+# 
+# library(magrittr)
+# 
+# getRes <- function(i){
+#     name <- names(tune)[i]
+#     res <- tune[[i]]$results
+#     df <- res[(ncol(res)-3):ncol(res)]
+#     apply(res,1,function(r) paste(r[1:(ncol(res)-4)],collapse = '-')) %>% 
+#       paste(name,.,sep='-') -> model
+#     cbind.data.frame(model,df,name=name[[1]],stringsAsFactors =F)
+#   }
+#     
+#     df <- plyr::ldply(1:length(tune),getRes)
+# 
+# do.call(caret::train(mdls, trainArgs[[1]]))
+# 
+# caret::train(trainArgs[[1]], mdls)
+# 
+# 
+# library(caret)
+# do.call('train',trainArgs[[1]])
+# 
+# do.call('caret::train()', trainArgs[[1]])
+# 
+# 
+# 
+# 
+# names(tune) <- mdls
+# CVtune <<- tune
