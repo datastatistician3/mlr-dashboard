@@ -6,7 +6,7 @@ output:
     social: [ "menu" ]
     orientation: rows
     vertical_layout: fill
-    source_code: embed
+    # source_code: embed
     theme: cerulean
 runtime: shiny
 ---
@@ -39,7 +39,6 @@ opts_chunk$set(
 echo_chunks    <- FALSE #Toggle for debugging.
 message_chunks <- FALSE #Toggle for debugging.
 options(width=100) #So the output is 25% wider than the default.
-read_chunk('./app.R')
 ```
 
 
@@ -336,7 +335,8 @@ actionButton('btn_train',label = 'Train Models',icon = icon('cogs'),class='btn-s
 
 #### Model Performance
 ```{r}
-selectInput('slt_algo',label = 'Algorithm',choices = reg.mdls,selected = reg.mdls,multiple=T)
+# selectInput('slt_Finalalgo',label = 'Final Model:'%>%label.help('lbl_Finalalgo'),choices=mdls,multiple=T),
+selectInput('slt_Finalalgo',label = 'Final Model',choices = mdls, multiple=F)
 ```
 
 # Data Summary

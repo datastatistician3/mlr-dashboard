@@ -140,40 +140,41 @@ tune <- lapply(mdls,function(m){
   do.call('train',trainArgs[[m]])
 })
 
-
+library(magrittr)
+l
 fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
 
 list_df <- (purrr::map(tune, 'results'))
 
 train_fit_summary <- list_df %>% 
-  map2_df(names(tune),~mutate(.x,name=.y)) %>% 
-  dplyr::select(name, everything()) %>% 
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything()) %>% 
   tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
-  dplyr::mutate(Model = str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
   dplyr::mutate(rank = dplyr::dense_rank(Rsquared)) %>% 
   dplyr::arrange(rank) %>% 
   dplyr::select(rank, dplyr::everything())
 
 
 best_pred_df <- (purrr::map(tune, 'bestTune')) %>% 
-  map2_df(names(tune),~mutate(.x,name=.y)) %>% 
-  dplyr::select(name, everything()) %>% 
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything()) %>% 
   tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
-  dplyr::mutate(Model = str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
 
 
 pred_names <- c('pred','obs', 'rowIndex','Resample')
 list_pred_df <- (purrr::map(tune, 'pred'))
 
 train_pred_summary <- list_pred_df %>%
-  map2_df(names(tune),~mutate(.x,name=.y)) %>%
-  dplyr::select(name, everything()) %>%
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>%
+  dplyr::select(name, dplyr::everything()) %>%
   tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
-  dplyr::mutate(Model = str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
   dplyr::inner_join(best_pred_df, by = "Model")
 
 
-# 
+
 # test_result <- lapply(mdls,function(m){
 #   do.call('train',trainArgs[[m]])
 # })
@@ -183,49 +184,21 @@ train_pred_summary <- list_pred_df %>%
 #   do.call('test',trainArgs[[m]])
 # })
 # 
-# 
-# tune$svmPoly$finalModel
-# 
-# tune$svmPoly$bestTune
-# 
-# 
-# lapply(CVtune[input$slt_Finalalgo],
-#        predict.train,isolate(dataTest)) %>% 
-#   data.frame() -> df
-# 
+
+
+tune <- lapply(mdls,function(m){
+  do.call('train',trainArgs[[m]])
+})
 
 
 
+final_model_svm <- (purrr::map(tune, 'finalModel'))
 
 
+final_model_svm %>% 
+  purrr::map2_df(names(.),~dplyr::mutate(.x,name=.y))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 
-# 
-# 
+ 
 # 
 # 
 # get_fits <- list()
