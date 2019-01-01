@@ -192,11 +192,84 @@ tune <- lapply(mdls,function(m){
 
 
 
-final_model_svm <- (purrr::map(tune, 'finalModel'))
+final_model_svm <- (purrr::map(tune))
 
 
 final_model_svm %>% 
   purrr::map2_df(names(.),~dplyr::mutate(.x,name=.y))
+
+
+
+
+df_preds <- lapply(tune['svmLinear'],predict.train,dataTest) %>% as.data.frame()
+lapply(tune['svmLinear'],extractPrediction,dataTest)
+
+
+names(tune)
+
+list_cols <- (lapply(tune[names(tune)],predict.train,dataTest))
+unlist(list_cols)
+
+tidyr::gather(do.call(cbind.data.frame, list_cols), Model, predicted)
+
+
+
+c <- apply(df_preds['svmLinear'],1,mean)
+s1 <- 1 - mean((dataTest$y-c)^2)/mean((dataTest$y-mean(dataTest$y))^2)
+s2 <- sqrt(mean((dataTest$y-c)^2))
+
+
+train_fit_summary <- list_cols %>% 
+  purrr::map2_df(names(list_cols),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything())
+
+
+
+
+
+
+
+knnFit <- caret::train(mpg ~ ., data = mtcars, method = "svmLinear",
+                       trControl = trainControl(method = "cv"))
+
+rdaFit <- train(mpg ~ ., data = mtcars, method = "svmPoly",
+                trControl = trainControl(method = "cv"))
+
+bothModels <- list(knn = knnFit,
+                   tree = rdaFit)
+
+extractPrediction(bothModels, testX = mtcars[1:5, -1])
+extractProb(bothModels, testX = mtcars[1:10, -1])
+
+
+
+
+
+
+
+
+
+
+knnFit <- caret::train(Species ~ ., data = iris, method = "knn",
+                trControl = trainControl(method = "cv"))
+
+rdaFit <- train(Species ~ ., data = iris, method = "rda",
+                trControl = trainControl(method = "cv"))
+
+predict(knnFit)
+predict(knnFit, type = "prob")
+
+bothModels <- list(knn = knnFit,
+                   tree = rdaFit)
+
+
+predict.train(knnFit, testX = iris[1:10, -5])
+predict(bothModels)
+
+extractPrediction(bothModels, testX = iris[1:10, -5])
+extractProb(bothModels, testX = iris[1:10, -5])
+
+
 
  
 # 
