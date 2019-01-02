@@ -85,6 +85,25 @@ mdli <- list(
 
 reg.mdls <- mdls[mdli[['Regression']]]
 cls.mdls <- mdls[mdli[['Classification']]]
+
+capitalize_each_word <- function(string, pattern = NULL){
+  if (!is.null(pattern)) {
+    g <- l <- j <- list()
+    g <- stringr::str_split(base::trimws(string), pattern = pattern)
+    for ( i in 1:length(g)){
+      l[[i]] <- paste(Hmisc::capitalize(g[[i]]), collapse = " ")
+      j[[i]] <- paste(l[[i]], collapse = " ")
+    }
+    } else {
+    g <- l <- j <- list()
+    g <- stringr::str_split(base::trimws(string), pattern = "\\s+")
+    for ( i in 1:length(g)){
+      l[[i]] <- paste(Hmisc::capitalize(g[[i]]), collapse = " ")
+      j[[i]] <- paste(l[[i]], collapse = " ")
+  }
+}
+  return(unlist(j))
+}
 ```
 
 
@@ -113,7 +132,7 @@ cls.mdls <- mdls[mdli[['Classification']]]
 ```
 
 
-Sidebar {.sidebar data-width=250}
+Sidebar {.sidebar data-width=300}
 =======================================================================
 
 ```{r}
@@ -312,9 +331,52 @@ observeEvent(input$btn_train,{
       do.call('train',trainArgs[[m]])
     })
     
-    names(tune) <- mdls
-    CVtune <<- tune
-    # saveRDS(CVtune,'initState.Rdata')
+    library(magrittr)
+
+fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
+
+list_df <- (purrr::map(tune, 'results'))
+
+train_fit_summary <- list_df %>% 
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything()) %>% 
+  tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
+  dplyr::mutate(rank = dplyr::dense_rank(Rsquared)) %>% 
+  dplyr::arrange(rank) %>% 
+  dplyr::select(rank, dplyr::everything())
+
+
+best_pred_df <- (purrr::map(tune, 'bestTune')) %>% 
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything()) %>% 
+  tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
+
+
+pred_names <- c('pred','obs', 'rowIndex','Resample')
+list_pred_df <- (purrr::map(tune, 'pred'))
+
+train_pred_summary <- list_pred_df %>%
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>%
+  dplyr::select(name, dplyr::everything()) %>%
+  tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+  dplyr::inner_join(best_pred_df, by = "Model")
+
+list_cols <- (lapply(tune[names(tune)],predict.train,dataTest)) %>% data.frame()
+
+list_cols$y <- dataTest$y
+
+best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
+
+df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -yy) %>% 
+  dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
+  dplyr::group_by(model_name) %>% 
+  dplyr::mutate(r_square = sum((predicted - mean(yy))**2) / sum((yy - mean(yy))**2),
+                   rmse = sqrt(mean((yy-predicted)^2))) %>% 
+  dplyr::ungroup()
+
   })
 
 ```
@@ -325,7 +387,7 @@ observeEvent(input$btn_train,{
 sliderInput('sld_testsplit',label = 'Test Set %','lbl_testsplit',min = 33,max = 90,step = 1,value = 33)
 radioButtons('rdo_model_type',label = 'Model Type',choices = c('Regression'= "Regression",'Classification'= "Classification"),inline = T)
 selectInput('slt_algo',label = 'Algorithm',choices = reg.mdls,selected = reg.mdls,multiple=T)
-selectizeInput('slt_Tune','Parameter Tuning',choices = c('Coarse auto-tune (fast)','Fine auto-tune (slow)','manual'))
+selectizeInput('slt_Tune','Parameter Tuning',choices = c('Manual Grid Search')) #,'Coarse auto-tune (fast)','Fine auto-tune (slow)'))
 radioButtons('rdo_CVtype',label = 'Cross-validation Folds',choices = c('3-fold'=3,'5-fold'=5,'10-fold'=10),inline = T)
                                          
 actionButton('btn_train',label = 'Train Models',icon = icon('cogs'),class='btn-success fa-lg',width='100%')
@@ -336,16 +398,97 @@ actionButton('btn_train',label = 'Train Models',icon = icon('cogs'),class='btn-s
 #### Model Performance
 ```{r}
 # selectInput('slt_Finalalgo',label = 'Final Model:'%>%label.help('lbl_Finalalgo'),choices=mdls,multiple=T),
-selectInput('slt_Finalalgo',label = 'Final Model',choices = mdls, multiple=F)
+selectInput('slt_Finalalgo',label = 'Final Model',choices = df_predicted$Model, multiple=F)
 ```
 
 # Data Summary
-```{r spaghetti, echo=echo_chunks, message=message_chunks, results='asis', fig.height=8, fig.width=20}
 
-DT::renderDataTable({
-dataTest
-})
+## {.tabset}
+
+### Outcome Distribution
+```{r}
+    renderPlot({
+      ds <- rawdata() %>% as.data.frame()
+      if ((class(ds[,input$yvar]) != 'factor')){
+            TabularManifest::histogram_continuous(ds, 
+                                          input$yvar, 
+                                          main_title = paste0("Distribution of ",input$yvar),
+                                          x_title = capitalize_each_word(input$yvar))
+      } else {
+           TabularManifest::histogram_discrete(ds, 
+                                          input$yvar, 
+                                          main_title = paste0("Distribution of ",input$yvar),
+                                          x_title = capitalize_each_word(input$yvar))
+      }
+
+    })
 ```
+
+### Plots of Predictor Variables
+```{r}
+    renderPlot({
+      ds <- rawdata()
+      
+      if ((class(ds[,input$yvar]) == 'factor')) {
+        GGally::ggpairs(ds, mapping = aes_string(color = input$yvar), columns = input$xvar)
+        } else {
+        GGally::ggpairs(ds, columns = c(input$yvar,input$xvar))
+        }
+    })
+
+```
+
+### Summary of Features
+```{r}
+    # renderPlot({
+    #   ds <- rawdata()
+    #   if (class(ds[input$yvar]) != "numeric") {
+    #     GGally::ggpairs(ds, mapping = aes(color = input$yvar), columns = input$xvar)
+    #     } else {
+    #       GGally::ggpairs(ds)
+    #     }
+    # })
+
+
+renderDataTable({
+  ds <- rawdata()
+  y <- input$yvar
+
+   if (class(ds[,y]) == 'factor') {
+    ds %>%
+    tidyr::gather(key, value, -y) %>%  
+    dplyr::group_by_(.dots = y, 'key') %>%
+    dplyr::summarize(
+       "Minimum"     = min(value, na.rm = TRUE),
+       "Maximum"     = max(value, na.rm = TRUE),
+       "Mean"        = mean(value, na.rm = TRUE),
+       "No. of Obs." = sum(!is.na(value), na.rm = TRUE),
+       "Std. Dev."   = round(sd(value, na.rm = TRUE),2),
+       "Range"       = paste0("(", Minimum, " , ", Maximum, ")")
+    ) %>%
+    dplyr::rename("Features" = "key")
+
+  } else {
+    ds %>%
+    # dplyr::select_(.dots = -y) %>%
+    tidyr::gather(key, value) %>%
+    dplyr::group_by(key) %>%
+    dplyr::summarize(
+       "Minimum"     = min(value, na.rm = TRUE),
+       "Maximum"     = max(value, na.rm = TRUE),
+       "Mean"        = mean(value, na.rm = TRUE),
+       "No. of Obs." = sum(!is.na(value), na.rm = TRUE),
+       "Std. Dev."   = round(sd(value, na.rm = TRUE),2),
+       "Range"       = paste0("(", Minimum, " , ", Maximum, ")")
+    ) %>%
+    dplyr::rename("Features" = "key")
+  }
+ 
+})
+
+```
+
+
 
 # Training Models {.tabset data-width=300}
 

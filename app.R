@@ -185,52 +185,162 @@ train_pred_summary <- list_pred_df %>%
 # })
 # 
 
-
-tune <- lapply(mdls,function(m){
-  do.call('train',trainArgs[[m]])
-})
-
-
-
-
-
-
-df_preds <- lapply(tune['svmLinear'],predict.train,dataTest) %>% as.data.frame()
-lapply(tune['svmLinear'],extractPrediction,dataTest)
+# df_preds <- lapply(tune['svmLinear'],predict.train,dataTest) %>% as.data.frame()
+# lapply(tune['svmLinear'],extractPrediction,dataTest)
 
 
 list_cols <- (lapply(tune[names(tune)],predict.train,dataTest)) %>% data.frame()
 
-# df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), Model, predicted)
+list_cols$y <- dataTest$y
 
-best_pred_df$model_name <- grep(pattern = "[a-z]+|[A_Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
+best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
 
-
-c <- apply(df_preds['svmLinear'],1,mean)
-s1 <- 1 - mean((dataTest$y-c)^2)/mean((dataTest$y-mean(dataTest$y))^2)
-s2 <- sqrt(mean((dataTest$y-c)^2))
-
-
-
-
+df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -yy) %>% 
+  dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
+  dplyr::group_by(model_name) %>% 
+  dplyr::mutate(r_square = sum((predicted - mean(yy))**2) / sum((yy - mean(yy))**2),
+                   rmse = sqrt(mean((yy-predicted)^2))) %>% 
+  dplyr::ungroup()
 
 
 
 
-knnFit <- caret::train(mpg ~ ., data = mtcars, method = "svmLinear",
-                       trControl = trainControl(method = "cv"))
+TabularManifest::histogram_discrete(mtcars, 'am', main_title = "Disctribution of ", x_title = capitalize_each_word(mpg))
 
-rdaFit <- train(mpg ~ ., data = mtcars, method = "svmPoly",
-                trControl = trainControl(method = "cv"))
-
-bothModels <- list(svmlinear = knnFit,
-                   svmpoly = rdaFit)
-
-extractPrediction(bothModels, testX = mtcars[1:5, -1])
-0.63+extractProb(bothModels, testX = mtcars[1:10, -1])
+TabularManifest::create_manifest_explore_univariate()
 
 
 
+Somya::capitalize_each_word
+
+library(ggplot2)
+mtcars$am <- as.factor(mtcars$am)
+
+if (class(mtcars$mpg) != "numeric") {
+  GGally::ggpairs(mtcars, mapping = aes(color = am), columns = c("am", "drat", "wt"))
+} else {
+  GGally::ggpairs(mtcars)
+}
+
+GGally::ggscatmat(mtcars, columns = 2:4, color="am", alpha=0.8)
+
+
+tidyr::gather(mtcars, kfsdfey, vadfdslue)
+
+mtcars$am <- as.numeric(mtcars$am)
+df <- mtcars %>% 
+  tidyr::gather(key, value) %>% 
+  dplyr::group_by(key) %>% 
+  dplyr::summarize(
+     "Minimum"     = min(value, na.rm = TRUE),
+     "Maximum"     = max(value, na.rm = TRUE),
+     "Mean"        = mean(value, na.rm = TRUE),
+     "No. of Obs." = sum(!is.na(value), na.rm = TRUE),
+     "Std. Dev."   = round(sd(value, na.rm = TRUE),2),
+     "Range"       = paste0("(", Minimum, ",", Maximum, ")")
+  ) %>% 
+  dplyr::rename("Features" = "key")
+     # "Summary"     = sprintf("%.2f (%.2f, %d)", st_mean, st_std, st_count)) %>%
+# dplyr::select(-st_mean,-st_count,-st_std, -st_min, -st_max)
+
+
+mean(mtcars$mpg)
+
+if (ncol(mtcars)*nrow(mtcars) != nrow(df_tidied)) {
+  
+}
+
+if (class(input$yvar) != 'numeric') {
+  mtcars %>% 
+  tidyr::gather(key, value) %>% 
+  dplyr::group_by_(key, input$yvar) %>% 
+  dplyr::summarize(
+     "Minimum"     = min(value, na.rm = TRUE),
+     "Maximum"     = max(value, na.rm = TRUE),
+     "Mean"        = mean(value, na.rm = TRUE),
+     "No. of Obs." = sum(!is.na(value), na.rm = TRUE),
+     "Std. Dev."   = round(sd(value, na.rm = TRUE),2),
+     "Range"       = paste0("(", Minimum, ",", Maximum, ")")
+  ) %>% 
+  dplyr::rename("Features" = "key")
+  
+} else {
+  mtcars %>% 
+  tidyr::gather(key, value) %>% 
+  dplyr::group_by(key) %>% 
+  dplyr::summarize(
+     "Minimum"     = min(value, na.rm = TRUE),
+     "Maximum"     = max(value, na.rm = TRUE),
+     "Mean"        = mean(value, na.rm = TRUE),
+     "No. of Obs." = sum(!is.na(value), na.rm = TRUE),
+     "Std. Dev."   = round(sd(value, na.rm = TRUE),2),
+     "Range"       = paste0("(", Minimum, ",", Maximum, ")")
+  ) %>% 
+  dplyr::rename("Features" = "key")
+}
+
+
+ mtcars %>% 
+  tidyr::gather(key, value, -"am") %>% 
+  dplyr::group_by(key, )
+
+
+ ds <-iris
+
+ 
+   if (class(ds[,'Species']) == 'factor') {
+    ds %>%
+    tidyr::gather(key, value, -'Species') %>%  #), -input$yvar) %>%
+    dplyr::group_by_(.dots = 'Species', 'key') %>%
+    dplyr::summarize(
+       "Minimum"     = min(value, na.rm = TRUE),
+       "Maximum"     = max(value, na.rm = TRUE),
+       "Mean"        = mean(value, na.rm = TRUE),
+       "No. of Obs." = sum(!is.na(value), na.rm = TRUE),
+       "Std. Dev."   = round(sd(value, na.rm = TRUE),2),
+       "Range"       = paste0("(", Minimum, " , ", Maximum, ")")
+    ) %>%
+    dplyr::rename("Features" = "key")
+
+  } else {
+    ds %>%
+    dplyr::select(-'Species') %>% 
+    tidyr::gather(key, value) %>%
+    dplyr::group_by(key) %>%
+    dplyr::summarize(
+       "Minimum"     = min(value, na.rm = TRUE),
+       "Maximum"     = max(value, na.rm = TRUE),
+       "Mean"        = mean(value, na.rm = TRUE),
+       "No. of Obs." = sum(!is.na(value), na.rm = TRUE),
+       "Std. Dev."   = round(sd(value, na.rm = TRUE),2),
+       "Range"       = paste0("(", Minimum, " , ", Maximum, ")")
+    ) %>%
+    dplyr::rename("Features" = "key")
+  }
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+# renderPlot({
+#     
+#     rf <- randomForest::randomForest(y~.,dataTrain)
+#     vi <- as.data.frame(randomForest::varImpPlot(rf))
+#     vi$Feature <- row.names(vi)
+#     names(vi)[1] <- 'Score'
+#     vi$Feature <- factor(vi$Feature,levels=vi$Feature[order(vi$Score)])
+#   str(vi)  
+#     ggplot(vi,aes(x=Feature,y=Score))+
+#       geom_bar(stat='identity',fill="#5EECC6")+
+#       coord_flip()+
+#       xlab('')+
+#       ylab('Relative Importance Score')
+#     
+#   })
 
 
 
@@ -238,25 +348,58 @@ extractPrediction(bothModels, testX = mtcars[1:5, -1])
 
 
 
-knnFit <- caret::train(Species ~ ., data = iris, method = "knn",
-                trControl = trainControl(method = "cv"))
+# c <- apply(df_preds['svmLinear'],1,mean)
+# s1 <- 1 - mean((dataTest$y-c)^2)/mean((dataTest$y-mean(dataTest$y))^2)
+# s2 <- sqrt(mean((dataTest$y-c)^2))
+# 
+# 
+# sum((df_predicted$predicted - mean(df_predicted$yy))**2) / sum((df_predicted$yy - mean(df_predicted$yy))**2)
+# 
+# 
+# sqrt(mean(df_predicted$yy- df_predicted$predicted)**2)
+#  
+# 
+# sum(-7.925,-2.825,7.675,3.075,-7.925,-2.825,7.675,3.075,-7.925,-2.825,7.675,3.075,-7.925,-2.825,7.675,3.075,-7.925,-2.825,7.675,3.075)
+# knnFit <- caret::train(mpg ~ ., data = mtcars, method = "svmLinear",
+#                        trControl = trainControl(method = "cv"))
+# 
+# rdaFit <- train(mpg ~ ., data = mtcars, method = "svmPoly",
+#                 trControl = trainControl(method = "cv"))
+# 
+# bothModels <- list(svmlinear = knnFit,
+#                    svmpoly = rdaFit)
+# 
+# extractPrediction(bothModels, testX = mtcars[1:5, -1])
+# 0.63+extractProb(bothModels, testX = mtcars[1:10, -1])
+# 
 
-rdaFit <- train(Species ~ ., data = iris, method = "rda",
-                trControl = trainControl(method = "cv"))
-
-predict(knnFit)
-predict(knnFit, type = "prob")
-
-bothModels <- list(knn = knnFit,
-                   tree = rdaFit)
 
 
-predict.train(knnFit, testX = iris[1:10, -5])
-predict(bothModels)
 
-extractPrediction(bothModels, testX = iris[1:10, -5])
-extractProb(bothModels, testX = iris[1:10, -5])
 
+
+
+
+
+# knnFit <- caret::train(Species ~ ., data = iris, method = "knn",
+#                 trControl = trainControl(method = "cv"))
+# 
+# rdaFit <- train(Species ~ ., data = iris, method = "rda",
+#                 trControl = trainControl(method = "cv"))
+# 
+# predict(knnFit)
+# predict(knnFit, type = "prob")
+# 
+# bothModels <- list(knn = knnFit,
+#                    tree = rdaFit)
+# 
+# 
+# predict.train(knnFit, testX = iris[1:10, -5])
+# predict(bothModels)
+# 
+# extractPrediction(bothModels, testX = iris[1:10, -5])
+# extractProb(bothModels, testX = iris[1:10, -5])
+# 
 
 
  
