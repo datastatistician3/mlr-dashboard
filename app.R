@@ -1,8 +1,8 @@
 mdls <- list('svmLinear'='svmLinear',
              'svmPoly'='svmPoly',
-             'Neural Network'='nnet',
+             'NNet'='nnet',
              'randomForest'='rf',
-             'k-NN'='knn'
+             'kNN'='knn'
              # 'Naive Bayes'='nb',
              # 'GLM'='glm',
              # 'GAM'='gam'
@@ -141,7 +141,7 @@ tune <- lapply(mdls,function(m){
 })
 
 library(magrittr)
-l
+
 fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
 
 list_df <- (purrr::map(tune, 'results'))
@@ -200,7 +200,6 @@ final_model_svm %>%
 
 
 
-
 df_preds <- lapply(tune['svmLinear'],predict.train,dataTest) %>% as.data.frame()
 lapply(tune['svmLinear'],extractPrediction,dataTest)
 
@@ -208,10 +207,10 @@ lapply(tune['svmLinear'],extractPrediction,dataTest)
 names(tune)
 
 list_cols <- (lapply(tune[names(tune)],predict.train,dataTest))
-unlist(list_cols)
 
 tidyr::gather(do.call(cbind.data.frame, list_cols), Model, predicted)
 
+model_list <- grep(pattern = "[a-z]+|[A_Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
 
 
 c <- apply(df_preds['svmLinear'],1,mean)
