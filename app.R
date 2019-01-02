@@ -192,11 +192,6 @@ tune <- lapply(mdls,function(m){
 
 
 
-final_model_svm <- (purrr::map(tune))
-
-
-final_model_svm %>% 
-  purrr::map2_df(names(.),~dplyr::mutate(.x,name=.y))
 
 
 
@@ -204,23 +199,17 @@ df_preds <- lapply(tune['svmLinear'],predict.train,dataTest) %>% as.data.frame()
 lapply(tune['svmLinear'],extractPrediction,dataTest)
 
 
-names(tune)
+list_cols <- (lapply(tune[names(tune)],predict.train,dataTest)) %>% data.frame()
 
-list_cols <- (lapply(tune[names(tune)],predict.train,dataTest))
+# df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), Model, predicted)
 
-tidyr::gather(do.call(cbind.data.frame, list_cols), Model, predicted)
-
-model_list <- grep(pattern = "[a-z]+|[A_Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
+best_pred_df$model_name <- grep(pattern = "[a-z]+|[A_Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
 
 
 c <- apply(df_preds['svmLinear'],1,mean)
 s1 <- 1 - mean((dataTest$y-c)^2)/mean((dataTest$y-mean(dataTest$y))^2)
 s2 <- sqrt(mean((dataTest$y-c)^2))
 
-
-train_fit_summary <- list_cols %>% 
-  purrr::map2_df(names(list_cols),~dplyr::mutate(.x,name=.y)) %>% 
-  dplyr::select(name, dplyr::everything())
 
 
 
@@ -234,11 +223,11 @@ knnFit <- caret::train(mpg ~ ., data = mtcars, method = "svmLinear",
 rdaFit <- train(mpg ~ ., data = mtcars, method = "svmPoly",
                 trControl = trainControl(method = "cv"))
 
-bothModels <- list(knn = knnFit,
-                   tree = rdaFit)
+bothModels <- list(svmlinear = knnFit,
+                   svmpoly = rdaFit)
 
 extractPrediction(bothModels, testX = mtcars[1:5, -1])
-extractProb(bothModels, testX = mtcars[1:10, -1])
+0.63+extractProb(bothModels, testX = mtcars[1:10, -1])
 
 
 
