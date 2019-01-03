@@ -370,12 +370,13 @@ list_cols$y <- dataTest$y
 
 best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
 
-df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -yy) %>% 
-  dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
-  dplyr::group_by(model_name) %>% 
-  dplyr::mutate(r_square = sum((predicted - mean(yy))**2) / sum((yy - mean(yy))**2),
-                   rmse = sqrt(mean((yy-predicted)^2))) %>% 
-  dplyr::ungroup()
+df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -y) %>% 
+dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
+dplyr::group_by(model_name) %>% 
+dplyr::mutate(r_square = sum((predicted - mean(y))**2) / sum((y - mean(y))**2),
+                 rmse = sqrt(mean((y-predicted)^2))) %>% 
+dplyr::ungroup()
+
 
   })
 
@@ -398,7 +399,7 @@ actionButton('btn_train',label = 'Train Models',icon = icon('cogs'),class='btn-s
 #### Model Performance
 ```{r}
 # selectInput('slt_Finalalgo',label = 'Final Model:'%>%label.help('lbl_Finalalgo'),choices=mdls,multiple=T),
-selectInput('slt_Finalalgo',label = 'Final Model',choices = df_predicted$Model, multiple=F)
+selectInput('slt_Finalalgo',label = 'Final Model',choices = mdls, multiple=F)
 ```
 
 # Data Summary

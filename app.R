@@ -31,8 +31,9 @@ datasets <- list(
 model_types <- c("Regression", "Classification")
 rawdata <- mtcars
 
-yvar <- rawdata$mpg
-xvars <- rawdata[,c('am', 'vs', 'hp', 'carb', 'wt')]
+# yvar <- rawdata$mpg
+yvar <- factor(as.character(rawdata$am))
+xvars <- rawdata[,c('am', 'hp', 'carb', 'wt')]
 testsize <- 0.80
 
 # if(is.null(yvar)||yvar=='')
@@ -69,7 +70,7 @@ dataTest  <<- df2[-trainIndex,]
 rdo_CVtype <- 3
     
 fitControl <- caret::trainControl(method = "cv",savePredictions = T,
-                           number = as.integer(rdo_CVtype))
+                           number = as.integer(rdo_CVtype),summaryFunction = defaultSummary)
 
 tuneParams <- list(
   'svmLinear'=data.frame(C=c(0.01,0.1,1)),
@@ -140,6 +141,8 @@ tune <- lapply(mdls,function(m){
   do.call('train',trainArgs[[m]])
 })
 
+
+#Regression
 library(magrittr)
 
 fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
@@ -173,21 +176,53 @@ train_pred_summary <- list_pred_df %>%
   dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
   dplyr::inner_join(best_pred_df, by = "Model")
 
+list_cols <- (lapply(tune[names(tune)],predict.train,dataTest)) %>% data.frame()
+
+list_cols$y <- dataTest$y
+
+best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
+
+df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -y) %>% 
+  dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
+  dplyr::group_by(model_name) %>% 
+  dplyr::mutate(r_square = sum((predicted - mean(y))**2) / sum((y - mean(y))**2),
+                   rmse = sqrt(mean((y-predicted)^2))) %>% 
+  dplyr::ungroup()
 
 
-# test_result <- lapply(mdls,function(m){
-#   do.call('train',trainArgs[[m]])
-# })
-# 
-# 
-# test_models <- lapply(mdls,function(m){
-#   do.call('test',trainArgs[[m]])
-# })
-# 
+### Classification
+library(magrittr)
 
-# df_preds <- lapply(tune['svmLinear'],predict.train,dataTest) %>% as.data.frame()
-# lapply(tune['svmLinear'],extractPrediction,dataTest)
+fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
 
+list_df <- (purrr::map(tune, 'results'))
+
+train_fit_summary <- list_df %>% 
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything()) %>% 
+  tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
+  dplyr::mutate(rank = dplyr::dense_rank(Rsquared)) %>% 
+  dplyr::arrange(rank) %>% 
+  dplyr::select(rank, dplyr::everything())
+
+
+best_pred_df <- (purrr::map(tune, 'bestTune')) %>% 
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything()) %>% 
+  tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
+
+
+pred_names <- c('pred','obs', 'rowIndex','Resample')
+list_pred_df <- (purrr::map(tune, 'pred'))
+
+train_pred_summary <- list_pred_df %>%
+  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>%
+  dplyr::select(name, dplyr::everything()) %>%
+  tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+  dplyr::inner_join(best_pred_df, by = "Model")
 
 list_cols <- (lapply(tune[names(tune)],predict.train,dataTest)) %>% data.frame()
 
@@ -195,13 +230,15 @@ list_cols$y <- dataTest$y
 
 best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
 
-df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -yy) %>% 
+df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -y) %>% 
   dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
   dplyr::group_by(model_name) %>% 
-  dplyr::mutate(r_square = sum((predicted - mean(yy))**2) / sum((yy - mean(yy))**2),
-                   rmse = sqrt(mean((yy-predicted)^2))) %>% 
+  dplyr::mutate(r_square = sum((predicted - mean(y))**2) / sum((y - mean(y))**2),
+                rmse = sqrt(mean((y-predicted)^2))) %>% 
   dplyr::ungroup()
 
+
+#####################
 
 
 
