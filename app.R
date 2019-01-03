@@ -1,20 +1,23 @@
+rm(list = ls(all =TRUE))
+
 mdls <- list('svmLinear'='svmLinear',
              'svmPoly'='svmPoly',
-             'NNet'='nnet',
+             'Neural Network'='nnet',
              'randomForest'='rf',
-             'kNN'='knn'
-             # 'Naive Bayes'='nb',
-             # 'GLM'='glm',
-             # 'GAM'='gam'
+             'k-NN'='knn',
+             'Naive Bayes'='nb',
+             'GLM'='glm'
              )
+#multinom
 
 mdli <- list(
-  'Regression'=c(T,T,T,T,T),
-  'Classification'=c(T,T,T,T,T)
+  'Regression'=c(T,T,T,T,T,F,F),
+  'Classification'=c(T,T,T,T,T,T,T)
 )  
 
 reg.mdls <- mdls[mdli[['Regression']]]
 cls.mdls <- mdls[mdli[['Classification']]]
+
 
 datasets <- list(
   'iris'=iris,
@@ -29,11 +32,15 @@ datasets <- list(
 )
 
 model_types <- c("Regression", "Classification")
-rawdata <- mtcars
+library(mlbench)
+data("Sonar")
 
-# yvar <- rawdata$mpg
-yvar <- factor(as.character(rawdata$am))
-xvars <- rawdata[,c('am', 'hp', 'carb', 'wt')]
+rawdata <- Sonar
+
+# yvar <- rawdata$V14
+yvar <- rawdata$Class
+xvars <- rawdata[,c("V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", 
+"V11", "V12", "V13")]
 testsize <- 0.80
 
 # if(is.null(yvar)||yvar=='')
@@ -70,18 +77,18 @@ dataTest  <<- df2[-trainIndex,]
 rdo_CVtype <- 3
     
 fitControl <- caret::trainControl(method = "cv",savePredictions = T,
-                           number = as.integer(rdo_CVtype),summaryFunction = defaultSummary)
+                           number = as.integer(rdo_CVtype),
+                           summaryFunction = defaultSummary)
 
 tuneParams <- list(
   'svmLinear'=data.frame(C=c(0.01,0.1,1)),
   'svmPoly'= expand.grid(degree=1:3,scale=c(0.01,0.1),C=c(0.25,0.5,1)),
   'nnet'=expand.grid(size=c(1,3,5),decay=c(0.01,0.1,1)),
   'rf'=data.frame(mtry=c(2,3,4)),
-  'knn'=data.frame(k=c(1,3,5,7,9))
-  # 'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1)),
-  # 'glm'=NULL#data.frame()
+  'knn'=data.frame(k=c(1,3,5,7,9)),
+  'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1)),
+  'glm'=NULL#data.frame()
 )
-
 
 trainArgs <- list(
   'svmLinear'= list(form=y ~ .,
@@ -115,42 +122,46 @@ trainArgs <- list(
              preProcess = c('scale','center'),
              method = 'knn',
              trControl = fitControl,
-             tuneGrid=tuneParams[['knn']])
-  # 'nb'= list(form=y ~ .,
-  #           data = dataTrain,
-  #           preProcess = c('scale','center'),
-  #           method = 'nb',
-  #           trControl = fitControl,
-  #           tuneGrid=tuneParams[['nb']])
-  # 'glm'= list(form=y ~ .,
-  #            data = dataTrain,
-  #            preProcess = c('scale','center'),
-  #            method = 'glm',
-  #            trControl = fitControl,
-  #            tuneGrid=NULL),
+             tuneGrid=tuneParams[['knn']]),
+  'nb'= list(form=y ~ .,
+            data = dataTrain,
+            preProcess = c('scale','center'),
+            method = 'nb',
+            trControl = fitControl,
+            tuneGrid=tuneParams[['nb']]),
+  'glm'= list(form=y ~ .,
+             data = dataTrain,
+             preProcess = c('scale','center'),
+             method = 'glm',
+             trControl = fitControl,
+             tuneGrid=tuneParams[['glm']])
   # 'gam'= list(form=y ~ .,
   #            data = dataTrain,
   #            preProcess = c('scale','center'),
   #            method = 'gam',
-  #            trControl = fitControl)
+  #            trControl = fitControl,
+  #            tuneGrid=tuneParams[['gam']])
 )
 
 library(caret)
 
-tune <- lapply(mdls,function(m){
+c <- "Regression1"
+if (c == 'Regression') {
+  reg_results <- lapply(reg.mdls,function(m){
   do.call('train',trainArgs[[m]])
 })
 
-
+names(reg_results) <- reg.mdls
+tuned_model <<- reg_results
 #Regression
 library(magrittr)
 
 fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
 
-list_df <- (purrr::map(tune, 'results'))
+list_df <- (purrr::map(tuned_model, 'results'))
 
 train_fit_summary <- list_df %>% 
-  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
   dplyr::select(name, dplyr::everything()) %>% 
   tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
   dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
@@ -158,25 +169,23 @@ train_fit_summary <- list_df %>%
   dplyr::arrange(rank) %>% 
   dplyr::select(rank, dplyr::everything())
 
-
-best_pred_df <- (purrr::map(tune, 'bestTune')) %>% 
-  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+best_pred_df <- (purrr::map(tuned_model, 'bestTune')) %>% 
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
   dplyr::select(name, dplyr::everything()) %>% 
   tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
   dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
 
-
 pred_names <- c('pred','obs', 'rowIndex','Resample')
-list_pred_df <- (purrr::map(tune, 'pred'))
+list_pred_df <- (purrr::map(tuned_model, 'pred'))
 
 train_pred_summary <- list_pred_df %>%
-  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>%
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
   dplyr::select(name, dplyr::everything()) %>%
   tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
   dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
   dplyr::inner_join(best_pred_df, by = "Model")
 
-list_cols <- (lapply(tune[names(tune)],predict.train,dataTest)) %>% data.frame()
+list_cols <- (lapply(tuned_model[names(tuned_model)],predict.train,dataTest)) %>% data.frame()
 
 list_cols$y <- dataTest$y
 
@@ -189,16 +198,132 @@ df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, 
                    rmse = sqrt(mean((y-predicted)^2))) %>% 
   dplyr::ungroup()
 
+} else {
+  class_results <- list()
+
+  class_models <- function(model, tuneParam){
+    res <- caret::train(y ~., 
+                        dataTrain, 
+                        method = model, 
+                        preProcess = c('scale','center'), 
+                        trControl=fitControl, 
+                        tuneGrid = tuneParam)
+    return(res)
+}
+
+  for (i in 1:sum(mdli$Classification)){
+    class_results[[i]] <- class_models(model = cls.mdls[[i]], tuneParam = tuneParams[[i]])
+  }
+
+  names(class_results) <- cls.mdls
+  tuned_model <<- class_results
+  
+library(magrittr)
+
+fit_names <- c("Accuracy", "Kappa", "AccuracySD", "KappaSD")
+
+list_df_class <- (purrr::map(tuned_model, 'results'))
+
+train_fit_summary <- list_df_class %>% 
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything()) %>% 
+  tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
+  dplyr::mutate(rank = dplyr::dense_rank(Accuracy)) %>% 
+  dplyr::arrange(rank) %>% 
+  dplyr::select(rank, dplyr::everything())
+
+best_pred_df <- (purrr::map(tuned_model, 'bestTune')) %>% 
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
+  dplyr::select(name, dplyr::everything()) %>% 
+  tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
+
+
+pred_names <- c('pred','obs', 'rowIndex','Resample')
+list_pred_df <- (purrr::map(tuned_model, 'pred'))
+
+train_pred_summary <- list_pred_df %>%
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
+  dplyr::select(name, dplyr::everything()) %>%
+  tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
+  dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+  dplyr::inner_join(best_pred_df, by = "Model")
+
+list_cols <- (lapply(tuned_model[names(tuned_model)],predict.train,dataTest)) %>% data.frame()
+
+list_cols$y <- dataTest$y
+
+best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+]$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-|none|TRUE")),value = T)
+
+df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -y) %>% 
+  dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
+  dplyr::mutate(predicted = as.factor(predicted)) %>% 
+  dplyr::group_by(model_name) %>% 
+  dplyr::mutate(Accuracy = sum(predicted == y)/length(y),
+                Kappa    = vcd::Kappa(table(predicted,y))$Unweighted['value']) %>% 
+  dplyr::ungroup() %>% as.data.frame()
+}
+
+
+
+
+
+# 
+#   class_results <- list()
+#   
+#     class_models <- function(model, tuneParam){
+#       res <- caret::train(y ~., 
+#                           dataTrain, 
+#                           method = model, 
+#                           preProcess = c('scale','center'), 
+#                           trControl=fitControl, 
+#                           tuneGrid = tuneParam)
+#       return(res)
+#   }
+#   
+#     for (i in 1:length(mdls)){
+#       class_results[[i]] <- class_models(model = mdls[[i]], tuneParam = tuneParams[[i]])
+#     }
+#   
+#     names(class_results) <- mdls
+#     tuned_model0 <- class_results
+#   }
+#     tuned_model <<- tuned_model0
+
+# confusion_matrix <- caret::confusionMatrix(df_predicted$predicted, df_predicted$y, positive="R", mode="everything")
+
+
+
+
+# 
+# c <- apply(mtcars,1,raster::modal)
+# s1 <- sum(c==dataTest$y)/nrow(dataTest)
+# s2 <- vcd::Kappa(table(c, dataTest$y))$Unweighted[1]
+# 
+# 
+# 
+# sum(df_predicted$predicted == df_predicted$y)/nrow(df_predicted)
+# 
+# irr::kappa2(cbind(matrix(df_predicted$predicted), matrix(df_predicted$y)))
+# 
+# vcd::Kappa(table(df_predicted$predicted,df_predicted$y))$Unweighted['value']
+# 
+# 
+
+
+
+
 
 ### Classification
 library(magrittr)
 
 fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
 
-list_df <- (purrr::map(tune, 'results'))
+list_df <- (purrr::map(tuned_model, 'results'))
 
 train_fit_summary <- list_df %>% 
-  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
   dplyr::select(name, dplyr::everything()) %>% 
   tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
   dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
@@ -207,24 +332,24 @@ train_fit_summary <- list_df %>%
   dplyr::select(rank, dplyr::everything())
 
 
-best_pred_df <- (purrr::map(tune, 'bestTune')) %>% 
-  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>% 
+best_pred_df <- (purrr::map(tuned_model, 'bestTune')) %>% 
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
   dplyr::select(name, dplyr::everything()) %>% 
   tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
   dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
 
 
 pred_names <- c('pred','obs', 'rowIndex','Resample')
-list_pred_df <- (purrr::map(tune, 'pred'))
+list_pred_df <- (purrr::map(tuned_model, 'pred'))
 
 train_pred_summary <- list_pred_df %>%
-  purrr::map2_df(names(tune),~dplyr::mutate(.x,name=.y)) %>%
+  purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
   dplyr::select(name, dplyr::everything()) %>%
   tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
   dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
   dplyr::inner_join(best_pred_df, by = "Model")
 
-list_cols <- (lapply(tune[names(tune)],predict.train,dataTest)) %>% data.frame()
+list_cols <- (lapply(tuned_model[names(tuned_model)],predict.train,dataTest)) %>% data.frame()
 
 list_cols$y <- dataTest$y
 
