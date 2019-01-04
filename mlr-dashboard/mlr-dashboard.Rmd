@@ -146,14 +146,14 @@ library(magrittr)
 
 #### Data Input
 ```{r}
-selectInput('dataset',label = 'Choose Dataset',choices = names(datasetss),selected='none')
+selectInput('dataset',label = 'Choose Dataset',choices = names(datasetss),selected='iris')
+shinyjs::hidden(actionButton("reset_fileIn", HTML("Warning <br> Select 'none' in `Choose Dataset` before uploading a file."), style = "color:red;font-size:68.45%;background-color:#b0c5c5;width:100%"))
 fileInput('fileIn',label = 'Upload Data')
 actionButton('btn_viewData',label = 'View Data',icon=icon('table'), width = '100%')
 shiny::tags$br()
 shiny::tags$br()
 # selectizeInput('yvar',label='y (Choose Outcome Variable)',choices = character(0))
 # selectizeInput('xvar',label='X (Select Predictor Variables)',choices = character(0),multiple = T)
-
 ```
 
 ```{r}
@@ -169,6 +169,14 @@ rawdata <- reactive({
     datasetss[[input$dataset]]
   }
 })
+
+# observe({
+#   if (input$dataset != 'none') {
+#       shinyjs::show("reset_fileIn")
+#   } else {
+#     shinyjs::hide("reset_fileIn")
+#   }
+# })
 
 bsModal('data',title = 'Dataset',trigger = 'btn_viewData',size = 'large',renderDataTable({rawdata()}))
 
