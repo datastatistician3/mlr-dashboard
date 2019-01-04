@@ -5,14 +5,14 @@ mdls <- list('svmLinear'='svmLinear',
              'Neural Network'='nnet',
              'randomForest'='rf',
              'k-NN'='knn',
-             'Naive Bayes'='nb',
-             'GLM'='glm'
+             'Naive Bayes'='nb'
+             # 'GLM'='glm'
              )
 #multinom
 
 mdli <- list(
-  'Regression'=c(T,T,T,T,T,F,F),
-  'Classification'=c(T,T,T,T,T,T,T)
+  'Regression'=c(T,T,T,T,T,F),
+  'Classification'=c(T,T,T,T,T,T)
 )  
 
 reg.mdls <- mdls[mdli[['Regression']]]
@@ -35,12 +35,11 @@ model_types <- c("Regression", "Classification")
 library(mlbench)
 data("Sonar")
 
-rawdata <- Sonar
+rawdata <- iris
 
 # yvar <- rawdata$V14
-yvar <- rawdata$Class
-xvars <- rawdata[,c("V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", 
-"V11", "V12", "V13")]
+yvar <- rawdata$Species
+xvars <- rawdata[,c("Sepal.Length", "Sepal.Width" , "Petal.Length", "Petal.Width")]
 testsize <- 0.80
 
 # if(is.null(yvar)||yvar=='')
@@ -86,8 +85,8 @@ tuneParams <- list(
   'nnet'=expand.grid(size=c(1,3,5),decay=c(0.01,0.1,1)),
   'rf'=data.frame(mtry=c(2,3,4)),
   'knn'=data.frame(k=c(1,3,5,7,9)),
-  'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1)),
-  'glm'=NULL#data.frame()
+  'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1))
+  # 'glm'=NULL#data.frame()
 )
 
 trainArgs <- list(
@@ -128,13 +127,13 @@ trainArgs <- list(
             preProcess = c('scale','center'),
             method = 'nb',
             trControl = fitControl,
-            tuneGrid=tuneParams[['nb']]),
-  'glm'= list(form=y ~ .,
-             data = dataTrain,
-             preProcess = c('scale','center'),
-             method = 'glm',
-             trControl = fitControl,
-             tuneGrid=tuneParams[['glm']])
+            tuneGrid=tuneParams[['nb']])
+  # 'glm'= list(form=y ~ .,
+  #            data = dataTrain,
+  #            preProcess = c('scale','center'),
+  #            method = 'glm',
+  #            trControl = fitControl,
+  #            tuneGrid=tuneParams[['glm']])
   # 'gam'= list(form=y ~ .,
   #            data = dataTrain,
   #            preProcess = c('scale','center'),
@@ -194,8 +193,8 @@ best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+$", unlist(stringr::str_
 df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -y) %>% 
   dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
   dplyr::group_by(model_name) %>% 
-  dplyr::mutate(r_square = sum((predicted - mean(y))**2) / sum((y - mean(y))**2),
-                   rmse = sqrt(mean((y-predicted)^2))) %>% 
+  dplyr::mutate(r_square = round(sum((predicted - mean(y))**2) / sum((y - mean(y))**2),4),
+                   rmse = round(sqrt(mean((y-predicted)^2)),4)) %>% 
   dplyr::ungroup()
 
 } else {
@@ -260,8 +259,8 @@ df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, 
   dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
   dplyr::mutate(predicted = as.factor(predicted)) %>% 
   dplyr::group_by(model_name) %>% 
-  dplyr::mutate(Accuracy = sum(predicted == y)/length(y),
-                Kappa    = vcd::Kappa(table(predicted,y))$Unweighted['value']) %>% 
+  dplyr::mutate(Accuracy = round(sum(predicted == y)/length(y),4),
+                Kappa    = round(vcd::Kappa(table(predicted,y))$Unweighted['value']),4) %>% 
   dplyr::ungroup() %>% as.data.frame()
 }
 

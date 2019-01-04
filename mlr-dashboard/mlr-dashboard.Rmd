@@ -18,6 +18,7 @@ library(knitr)
 library(flexdashboard)
 library(shiny)
 library(caret)
+library(dplyr)
 opts_knit$set(root.dir='./../')  #Don't combine this call with any other chunk -especially one that uses file paths.
 ```
 
@@ -62,8 +63,8 @@ mdls <- list('svmLinear'='svmLinear',
              'Neural Network'='nnet',
              'randomForest'='rf',
              'k-NN'='knn',
-             'Naive Bayes'='nb',
-             'GLM'='glm'
+             'Naive Bayes'='nb'
+             # 'GLM'='glm'
              )
 
 tuneParams <- list(
@@ -72,13 +73,13 @@ tuneParams <- list(
   'nnet'=expand.grid(size=c(1,3,5),decay=c(0.01,0.1,1)),
   'rf'=data.frame(mtry=c(2,3,4)),
   'knn'=data.frame(k=c(1,3,5,7,9)),
-  'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1)),
-  'glm'=NULL#data.frame()
+  'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1))
+  # 'glm'=NULL#data.frame()
 )
 
 mdli <- list(
-  'Regression'=c(T,T,T,T,T,F,F),
-  'Classification'=c(T,T,T,T,T,T,T)
+  'Regression'=c(T,T,T,T,T,F),
+  'Classification'=c(T,T,T,T,T,T)
 )  
 
 reg.mdls <- mdls[mdli[['Regression']]]
@@ -263,7 +264,7 @@ observe({
   })
 
 
-observeEvent(input$btn_train,{
+train_models <- eventReactive(input$btn_train,{
     
     disable('btn_train')
     on.exit(enable('btn_train'))
@@ -312,13 +313,13 @@ observeEvent(input$btn_train,{
               preProcess = c('scale','center'),
               method = 'nb',
               trControl = fitControl,
-              tuneGrid=tuneParams[['nb']]),
-    'glm'= list(form=y ~ .,
-               data = dataTrain,
-               preProcess = c('scale','center'),
-               method = 'glm',
-               trControl = fitControl,
-               tuneGrid=tuneParams[['glm']])
+              tuneGrid=tuneParams[['nb']])
+    # 'glm'= list(form=y ~ .,
+    #            data = dataTrain,
+    #            preProcess = c('scale','center'),
+    #            method = 'glm',
+    #            trControl = fitControl,
+    #            tuneGrid=tuneParams[['glm']])
     # 'gam'= list(form=y ~ .,
     #            data = dataTrain,
     #            preProcess = c('scale','center'),
@@ -354,114 +355,114 @@ observeEvent(input$btn_train,{
   
     names(class_results) <- cls.mdls
     tuned_model0 <- class_results
-    tuned_model <<- tuned_model0
+    tuned_model <- tuned_model0
   }
-})
-
-dff <- reactive({
-  df <- tuned_model()
-  df
+    tuned_model
 })
 
 
-# train_test_predictions <- reactive({
-#   if(is.null(tuned_model)) return(NULL)
-#   if (input$rdo_model_type == 'Regression'){
-#         #Regression
-# library(magrittr)
-# 
-#     fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
-# 
-#     list_df <- (purrr::map(tuned_model, 'results'))
-# 
-#     train_fit_summary <- list_df %>% 
-#       purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
-#       dplyr::select(name, dplyr::everything()) %>% 
-#       tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
-#       dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
-#       dplyr::mutate(rank = dplyr::dense_rank(Rsquared)) %>% 
-#       dplyr::arrange(rank) %>% 
-#       dplyr::select(rank, dplyr::everything())
-#     
-#     best_pred_df <- (purrr::map(tuned_model, 'bestTune')) %>% 
-#       purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
-#       dplyr::select(name, dplyr::everything()) %>% 
-#       tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
-#       dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
-#     
-#     pred_names <- c('pred','obs', 'rowIndex','Resample')
-#     list_pred_df <- (purrr::map(tuned_model, 'pred'))
-#     
-#     train_pred_summary <- list_pred_df %>%
-#       purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
-#       dplyr::select(name, dplyr::everything()) %>%
-#       tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
-#       dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
-#       dplyr::inner_join(best_pred_df, by = "Model")
-#     
-#     list_cols <- (lapply(tuned_model[names(tuned_model)],predict.train,dataTest)) %>% data.frame()
-#     
-#     list_cols$y <- dataTest$y
-#     
-#     best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
-#     
-#     df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -y) %>% 
-#       dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
-#       dplyr::group_by(model_name) %>% 
-#       dplyr::mutate(r_square = sum((predicted - mean(y))**2) / sum((y - mean(y))**2),
-#                        rmse = sqrt(mean((y-predicted)^2))) %>% 
-#       dplyr::ungroup()
-#   } else {
-#       if(is.null(tuned_model)) return(NULL)
-# 
-#   library(magrittr)
-# 
-#   fit_names <- c("Accuracy", "Kappa", "AccuracySD", "KappaSD")
-#   
-#   list_df_class <- (purrr::map(tuned_model, 'results'))
-#   
-#   train_fit_summary <- list_df_class %>% 
-#     purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
-#     dplyr::select(name, dplyr::everything()) %>% 
-#     tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>% 
-#     dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>% 
-#     dplyr::mutate(rank = dplyr::dense_rank(Accuracy)) %>% 
-#     dplyr::arrange(rank) %>% 
-#     dplyr::select(rank, dplyr::everything())
-#   
-#   best_pred_df <- (purrr::map(tuned_model, 'bestTune')) %>% 
-#     purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>% 
-#     dplyr::select(name, dplyr::everything()) %>% 
-#     tidyr::unite_('Model', names(.), sep='-', remove=T) %>% 
-#     dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) 
-#   
-#   
-#   pred_names <- c('pred','obs', 'rowIndex','Resample')
-#   list_pred_df <- (purrr::map(tuned_model, 'pred'))
-#   
-#   train_pred_summary <- list_pred_df %>%
-#     purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
-#     dplyr::select(name, dplyr::everything()) %>%
-#     tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
-#     dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
-#     dplyr::inner_join(best_pred_df, by = "Model")
-#   
-#   list_cols <- (lapply(tuned_model[names(tuned_model)],predict.train,dataTest)) %>% data.frame()
-#   
-#   list_cols$y <- dataTest$y
-#   
-#   best_pred_df$model_name <- grep(pattern = "[a-z]+|[A-Z]+]$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-|none|TRUE")),value = T)
-#   
-#   df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), model_name, predicted, -y) %>% 
-#     dplyr::inner_join(best_pred_df, by = c("model_name")) %>% 
-#     dplyr::mutate(predicted = as.factor(predicted)) %>% 
-#     dplyr::group_by(model_name) %>% 
-#     dplyr::mutate(Accuracy = sum(predicted == y)/length(y),
-#                   Kappa    = vcd::Kappa(table(predicted,y))$Unweighted['value']) %>% 
-#     dplyr::ungroup() %>% as.data.frame()
-#   }
-#   list(train_fit_summary=train_fit_summary, best_pred_df=best_pred_df,train_pred_summary=train_pred_summary,df_predicted=df_predicted )
-# })
+train_test_predictions <- reactive({
+  
+  tuned_model <- train_models()
+  
+  # if(is.null(tuned_model)) return(NULL)
+  if (input$rdo_model_type == 'Regression'){
+        #Regression
+    library(magrittr)
+
+    fit_names <- c("RMSE", "Rsquared", "MAE","RMSESD","RsquaredSD","MAESD")
+
+    list_df <- (purrr::map(tuned_model, 'results'))
+
+    train_fit_summary <- list_df %>%
+      purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
+      dplyr::select(name, dplyr::everything()) %>%
+      tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>%
+      dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+      dplyr::mutate(Rank = dplyr::dense_rank(Rsquared)) %>%
+      dplyr::arrange(Rank) %>%
+      dplyr::select(Rank, dplyr::everything())
+
+    best_pred_df <- (purrr::map(tuned_model, 'bestTune')) %>%
+      purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
+      dplyr::select(name, dplyr::everything()) %>%
+      tidyr::unite_('Model', names(.), sep='-', remove=T) %>%
+      dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", ""))
+
+    pred_names <- c('pred','obs', 'rowIndex','Resample')
+    list_pred_df <- (purrr::map(tuned_model, 'pred'))
+
+    train_pred_summary <- list_pred_df %>%
+      purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
+      dplyr::select(name, dplyr::everything()) %>%
+      tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
+      dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+      dplyr::inner_join(best_pred_df, by = "Model")
+
+    list_cols <- (lapply(tuned_model[names(tuned_model)],predict.train,dataTest)) %>% data.frame()
+
+    list_cols$y <- dataTest$y
+
+    best_pred_df$Model_Name <- grep(pattern = "[a-z]+|[A-Z]+$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-")),value = T)
+
+    df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), Model_Name, Predicted, -y) %>%
+      dplyr::inner_join(best_pred_df, by = c("Model_Name")) %>%
+      dplyr::group_by(Model_Name) %>%
+      dplyr::mutate(R_Square = round(sum((Predicted - mean(y))**2) / sum((y - mean(y))**2),4),
+                       RMSE = round(sqrt(mean((y-Predicted)^2)),4)) %>%
+      dplyr::mutate(Predicted = round(Predicted,4)) %>% 
+      dplyr::ungroup()
+  } else if (input$rdo_model_type == 'Classification') {
+      # if(is.null(tuned_model)) return(NULL)
+
+  library(magrittr)
+
+  fit_names <- c("Accuracy", "Kappa", "AccuracySD", "KappaSD")
+
+  list_df_class <- (purrr::map(tuned_model, 'results'))
+
+  train_fit_summary <- list_df_class %>%
+    purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
+    dplyr::select(name, dplyr::everything()) %>%
+    tidyr::unite_('Model', names(.)[!names(.) %in% fit_names], sep='-', remove=T) %>%
+    dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+    dplyr::mutate(Rank = dplyr::dense_rank(Accuracy)) %>%
+    dplyr::arrange(Rank) %>%
+    dplyr::select(Rank, dplyr::everything())
+
+  best_pred_df <- (purrr::map(tuned_model, 'bestTune')) %>%
+    purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
+    dplyr::select(name, dplyr::everything()) %>%
+    tidyr::unite_('Model', names(.), sep='-', remove=T) %>%
+    dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", ""))
+
+
+  pred_names <- c('pred','obs', 'rowIndex','Resample')
+  list_pred_df <- (purrr::map(tuned_model, 'pred'))
+
+  train_pred_summary <- list_pred_df %>%
+    purrr::map2_df(names(tuned_model),~dplyr::mutate(.x,name=.y)) %>%
+    dplyr::select(name, dplyr::everything()) %>%
+    tidyr::unite_('Model', names(.)[!names(.) %in% pred_names], sep='-', remove=T) %>%
+    dplyr::mutate(Model = stringr::str_replace_all(Model, "-NA|-NA-|NA-|NA", "")) %>%
+    dplyr::inner_join(best_pred_df, by = "Model")
+
+  list_cols <- (lapply(tuned_model[names(tuned_model)],predict.train,dataTest)) %>% data.frame()
+
+  list_cols$y <- dataTest$y
+
+  best_pred_df$Model_Name <- grep(pattern = "[a-z]+|[A-Z]+]$", unlist(stringr::str_split(string = best_pred_df$Model, pattern = "-|none|TRUE")),value = T)
+
+  df_predicted <- tidyr::gather(do.call(cbind.data.frame, list_cols), Model_Name, Predicted, -y) %>%
+    dplyr::inner_join(best_pred_df, by = c("Model_Name")) %>%
+    dplyr::mutate(Predicted = as.factor(Predicted)) %>%
+    dplyr::group_by(Model_Name) %>%
+    dplyr::mutate(Accuracy = round(sum(Predicted == y)/length(y),4),
+                  Kappa    = round(vcd::Kappa(table(Predicted,y))$Unweighted['value']),4) %>%
+    dplyr::ungroup() %>% as.data.frame()
+  }
+  list(train_fit_summary=train_fit_summary, best_pred_df=best_pred_df,train_pred_summary=train_pred_summary,df_predicted=df_predicted )
+})
 
 ```
 
@@ -481,8 +482,22 @@ actionButton('btn_train',label = 'Train Models',icon = icon('cogs'),class='btn-s
 
 #### Model Performance
 ```{r}
+# final_models <- train_test_predictions()$best_pred_df
 # selectInput('slt_Finalalgo',label = 'Final Model:'%>%label.help('lbl_Finalalgo'),choices=mdls,multiple=T),
-selectInput('slt_Finalalgo',label = 'Final Model',choices = mdls, multiple=F)
+# selectInput('slt_Finalalgo',label = 'Final Model',choices = final_models$Model, multiple=T)
+renderUI({
+  df <- train_test_predictions()$best_pred_df
+  if (is.null(df)) return(NULL)
+
+  items=(df$Model)
+  selectInput(
+    inputId = "slt_Finalalgo",
+    label = "Final Model",
+    choices = items,
+    selected = items,
+    multiple=T)
+})
+
 ```
 
 # Data Summary
@@ -581,21 +596,94 @@ renderDataTable({
 ### CV Model Rank
 
 ```{r echo=echo_chunks, message=message_chunks}
-DT::renderDataTable({
-dff()
-})
+renderPlot({
+    resdf <- train_test_predictions()$train_fit_summary
+    type <- isolate(input$rdo_model_type)
+    
+    if(type =='Regression'){
+        ggplot(resdf,aes(x=Model,color=Model))+
+          geom_errorbar(aes(ymin=RMSE-RMSESD,ymax=RMSE+RMSESD),size=1)+
+          geom_point(aes(y=RMSE),size=3)+
+          # scale_color_manual(values=pal)+
+          coord_flip()+
+          theme_bw()+
+          xlab('')+
+          theme(legend.position='none') -> p1
+        ggplot(resdf,aes(x=Model,color=Model))+
+          geom_errorbar(aes(ymin=Rsquared-RsquaredSD,ymax=Rsquared+RsquaredSD),size=1)+
+          geom_point(aes(y=Rsquared),size=3)+
+          # scale_color_manual(values=pal)+
+          coord_flip()+
+          theme_bw()+
+          xlab('')+
+          theme(legend.position='none') -> p2
+      } else {
+        ggplot(resdf,aes(x=Model, color=Model))+
+          geom_errorbar(aes(ymin=Kappa-KappaSD,ymax=Kappa+KappaSD),size=1)+
+          geom_point(aes(y=Kappa),size=3)+
+          # scale_color_manual(values=pal)+
+          coord_flip()+
+          theme_bw()+
+          xlab('')+
+          theme(legend.position='none') -> p1
+        ggplot(resdf,aes(x=Model,color=Model))+
+          geom_errorbar(aes(ymin=Accuracy-AccuracySD,ymax=Accuracy+AccuracySD),size=1)+
+          geom_point(aes(y=Accuracy),size=3)+
+          # scale_color_manual(values=pal)+
+          coord_flip()+
+          theme_bw()+
+          xlab('')+
+          theme(legend.position='none') -> p2
+      }
+       gridExtra::grid.arrange(p2,p1,ncol=2)
+  })
+
 ```
 
 ### CV Preds Vs. Obs
 
 ```{r echo=echo_chunks, message=message_chunks}
+renderPlot({
+    type <- isolate(input$rdo_model_type)
+      df <- train_test_predictions()$train_pred_summary
 
+    if(type=='Regression'){
+      lims <- c(min(df$obs),max(df$obs))
+      ggplot(df)+
+        geom_abline(alpha=0.5)+
+        geom_point(aes(x=obs,y=pred,col=Model))+
+        scale_x_continuous(limits = lims)+
+        scale_y_continuous(limits = lims)+
+        # scale_color_manual(values=pal)+
+        coord_equal()+
+        facet_wrap(~Model)+
+        theme_bw()+
+        xlab('Observed')+
+        ylab('Predicted')+
+        theme(legend.position='none')
+    } else {
+      df %>% dplyr::group_by(pred,obs,Model) %>% 
+        summarise(n=n()) %>% 
+        ggplot(.)+
+        geom_raster(aes(x=obs,y=pred,fill=Model,alpha=n))+
+        geom_text(aes(x=obs,y=pred,label=n))+
+        # scale_fill_manual(values=pal)+
+        coord_equal()+
+        facet_wrap(~Model)+
+        theme_bw()+
+        xlab('Observed')+
+        ylab('Predicted')+
+        theme(legend.position='none')
+    }
+})
 ```
 
 ### CV Statistics
 
 ```{r echo=echo_chunks, message=message_chunks}
-
+DT::renderDataTable({
+  train_test_predictions()$df_predicted
+})
 ```
 
 
@@ -604,45 +692,84 @@ dff()
 ## {.tabset}
 
 ### Test Set Predictions
+
 ```{r  echo=echo_chunks, message=message_chunks}
+renderPlot({
+    type <- isolate(input$rdo_model_type)
+      df <- train_test_predictions()$df_predicted
+
+    if(type=='Regression'){
+      lims <- c(min(df$y),max(df$y))
+      ggplot(df)+
+        geom_abline(alpha=0.5)+
+        geom_point(aes(x=y,y=Predicted,col=Model))+
+        scale_x_continuous(limits = lims)+
+        scale_y_continuous(limits = lims)+
+        # scale_color_manual(values=pal)+
+        coord_equal()+
+        facet_wrap(~Model)+
+        theme_bw()+
+        xlab('Observed')+
+        ylab('Predicted')+
+        theme(legend.position='none')
+    } else {
+      df %>% dplyr::group_by(Predicted,y,Model) %>% 
+        summarise(n=n()) %>% 
+        ggplot(.)+
+        geom_raster(aes(x=y,y=Predicted,fill=Model,alpha=n))+
+        geom_text(aes(x=y,y=Predicted,label=n))+
+        # scale_fill_manual(values=pal)+
+        coord_equal()+
+        facet_wrap(~Model)+
+        theme_bw()+
+        xlab('Observed')+
+        ylab('Predicted')+
+        theme(legend.position='none')
+    }
+})
 
 ```
+
+
+### Test Set Evaluation Measures
+```{r echo=echo_chunks, message=message_chunks}
+DT::renderDataTable({
+   type <- isolate(input$rdo_model_type)
+   df <- train_test_predictions()$df_predicted
+   df
+})
+```
+
 
 ### Feature Importance
 ```{r  echo=echo_chunks, message=message_chunks}
-
+renderPlot({
+    
+    rf <- randomForest::randomForest(y~.,dataTrain)
+    vi <- as.data.frame(randomForest::varImpPlot(rf))
+    vi$Feature <- row.names(vi)
+    names(vi)[1] <- 'Score'
+    vi$Feature <- factor(vi$Feature,levels=vi$Feature[order(vi$Score)])
+  str(vi)  
+    ggplot(vi,aes(x=Feature,y=Score))+
+      geom_bar(stat='identity',fill="#40D6A1")+
+      coord_flip()+
+      xlab('')+
+      ylab('Relative Importance Score')
+    
+  })
 ```
 
 # Documentation
-
 ## {.tabset}
 
-### Explanation - Current Model
+### About the Dashboard
 
-1. Measures
-
-    * **Outcome**: Tracking goal progress reported on the Encounter Form and Goal Plan Form in ETO
-        * **Numerator**: Numberof PDSA3/HOPE goals where progress (“started”, “partially completed”, or “completed”) has occurred.
-        * **Denominator**: Total number of actively pursued, PDSA3/HOPE goals
-
-    * **Process**: Submit goal status in the Goal Plan Form: Abandoned, Not Started, Started, Partially Completed, and Completed. 
-        * **Numerator**: Weekly discussions towards PDSA3/HOPE goals
-        * **Denominator**: Total number of actively pursued, PDSA3/HOPE goals
-    
-    * **Disruptor**: Not able to establish the goal (families without an active goal)
-        * **Numerator**: Number of clients that have not established goals
-        * **Denominator**: Total number of goals (sum of discussed and not discussed)
-
-2. A program's weekly values are plotted on top of the background of other programs in the model.
-
-3. Each graph represents one outcome. 
+This dshaboard was build using `flexdashboard` package in R. This dashboard lets you to run a series of machine learning algorithms for both regression and classification problems. It also utilizes a manual grid search approach and a choice of three cross-validation folds to optimize the models.
 
 #### Resources
 
-[Link to Current PDSA Document in Google Drive](https://docs.google.com/document/d/1A8sSklKjF3-1stEkRMFxpRYN2K7TrsFY7q-j9OusXB4/edit)
-
-### Explanation -All Dashboards
-
+[Link to Caret R Package](http://topepo.github.io/caret/index.html)
 
 
 
