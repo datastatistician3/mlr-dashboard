@@ -52,12 +52,18 @@ options(width=100) #So the output is 25% wider than the default.
 
 
 ```{r}
+data(churn, package = 'C50')
+test <- churnTest
+train <- churnTrain
+churn <- rbind(test,train)
+
 datasetss <- list(
   'none'= NULL,
   'iris'= datasets::iris,
   'cars'= datasets::mtcars,
   # 'diamonds'= ggplot2::diamonds,
-  'Boston'=MASS::Boston
+  'Boston'=MASS::Boston,
+  'churn' = churn
   # 'leaf'=leaf
   # 'midwest'=data.frame(midwest),
   # 'mpg'=data.frame(mpg),
