@@ -19,7 +19,14 @@ library(flexdashboard)
 library(shiny)
 library(caret)
 library(dplyr)
-opts_knit$set(root.dir='./../')  #Don't combine this call with any other chunk -especially one that uses file paths.
+library(e1071)
+library(klaR)
+library(shinyjs)
+require(shinyBS)
+library("htmltools")
+library("bsplus")
+library(magrittr)
+opts_knit$set(root.dir='./')  #Don't combine this call with any other chunk -especially one that uses file paths.
 ```
 
 <!-- Set the report-wide options, and point to the external code file. -->
@@ -133,16 +140,6 @@ capitalize_each_word <- function(string, pattern = NULL){
 
 Sidebar {.sidebar data-width=300}
 =======================================================================
-
-```{r}
-library(shiny)
-library(shinydashboard)
-library(shinyjs)
-require(shinyBS)
-library("htmltools")
-library("bsplus")
-library(magrittr)
-```
 
 #### Data Input
 ```{r}
