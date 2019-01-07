@@ -26,6 +26,7 @@ require(shinyBS)
 library("htmltools")
 library("bsplus")
 library(magrittr)
+library(C50)
 opts_knit$set(root.dir='./')  #Don't combine this call with any other chunk -especially one that uses file paths.
 ```
 
@@ -151,6 +152,8 @@ Sidebar {.sidebar data-width=300}
 ```{r}
 selectInput('dataset',label = 'Choose Dataset',choices = names(datasetss),selected='iris')
 shinyjs::hidden(actionButton("reset_fileIn", HTML("Warning <br> Select 'none' in `Choose Dataset` before uploading a file."), style = "color:red;font-size:68.45%;background-color:#b0c5c5;width:100%"))
+shiny::tags$br()
+shiny::tags$br()
 fileInput('fileIn',label = 'Upload Data')
 actionButton('btn_viewData',label = 'View Data',icon=icon('table'), width = '100%')
 shiny::tags$br()
@@ -173,6 +176,8 @@ rawdata <- reactive({
   }
 })
 
+bsModal('data',title = 'Dataset',trigger = 'btn_viewData',size = 'large',renderDataTable({rawdata()}))
+
 # observe({
 #   if (input$dataset != 'none') {
 #       shinyjs::show("reset_fileIn")
@@ -181,7 +186,6 @@ rawdata <- reactive({
 #   }
 # })
 
-bsModal('data',title = 'Dataset',trigger = 'btn_viewData',size = 'large',renderDataTable({rawdata()}))
 
 renderUI({
   df <- rawdata()
@@ -604,7 +608,7 @@ renderDataTable({
 
 ## {.tabset}
 
-### CV Model Rank
+### Cross-validation Model Rank
 
 ```{r echo=echo_chunks, message=message_chunks}
 renderPlot({
@@ -651,7 +655,7 @@ renderPlot({
 
 ```
 
-### CV Preds Vs. Obs
+### Cross-validation Predicted Vs. Actual
 
 ```{r echo=echo_chunks, message=message_chunks}
 renderPlot({
@@ -689,7 +693,7 @@ renderPlot({
 })
 ```
 
-### CV Statistics
+### Cross-validation Statistics
 
 ```{r echo=echo_chunks, message=message_chunks}
 DT::renderDataTable({
@@ -753,6 +757,7 @@ DT::renderDataTable({
 
 
 ### Feature Importance
+
 ```{r  echo=echo_chunks, message=message_chunks}
 renderPlot({
     
@@ -766,7 +771,7 @@ renderPlot({
       geom_bar(stat='identity',fill="#40D6A1")+
       coord_flip()+
       xlab('')+
-      ylab('Relative Importance Score')
+      ylab('Relative Importance Score from randomForest Model')
     
   })
 ```
@@ -781,6 +786,14 @@ This dshaboard was build using `flexdashboard` package in R. This dashboard lets
 #### Resources
 
 [Link to Caret R Package](http://topepo.github.io/caret/index.html)
+
+#### Contact
+Som Bohora
+
+email: [energeticsom@gmail.com](http://mail.google.com)
+
+[GitHub Page](https://github.com/sbohora)
+
 
 
 
