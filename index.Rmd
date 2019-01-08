@@ -27,6 +27,7 @@ library("htmltools")
 library("bsplus")
 library(magrittr)
 library(C50)
+# library(mlbench)
 opts_knit$set(root.dir='./')  #Don't combine this call with any other chunk -especially one that uses file paths.
 ```
 
@@ -58,8 +59,16 @@ test <- churnTest
 train <- churnTrain
 churn <- rbind(test,train)
 
+# data(BreastCancer, package = 'mlbench')
+# breast_cancer <- BreastCancer
+# data(PimaIndiansDiabetes, package = 'mlbench')
+# PimaIndiansDiabetes <- PimaIndiansDiabetes
+
 datasetss <- list(
   'none'= NULL,
+  # 'breast_cancer' = breast_cancer,
+  # 'economics' = datasets::longley,
+  # 'pima_diabetes' = PimaIndiansDiabetes,
   'iris'= datasets::iris,
   'cars'= datasets::mtcars,
   # 'diamonds'= ggplot2::diamonds,
@@ -781,13 +790,14 @@ renderPlot({
 
 ### About the Dashboard
 
-This dshaboard was build using `flexdashboard` package in R. This dashboard lets you to run a series of machine learning algorithms for both regression and classification problems. It also utilizes a manual grid search approach and a choice of three cross-validation folds to optimize the models.
+This dashboard was built using `flexdashboard` package in R. This dashboard lets you run a series of machine learning algorithms for both regression and classification problems and provides a few best models to predict your test dataset. It utilizes a manual grid search approach and three choices of cross-validation folds to optimize the models. 
 
 #### Resources
 
 [Link to Caret R Package](http://topepo.github.io/caret/index.html)
 
 #### Contact
+
 Som Bohora
 
 email: [energeticsom@gmail.com](http://mail.google.com)
