@@ -482,7 +482,7 @@ train_test_predictions <- reactive({
     dplyr::mutate(Predicted = as.factor(Predicted)) %>%
     dplyr::group_by(Model_Name) %>%
     dplyr::mutate(Accuracy = round(sum(Predicted == y)/length(y),4),
-                  Kappa    = round(vcd::Kappa(table(Predicted,y))$Unweighted['value']),4) %>%
+                  Kappa    = round(kappa(table(Predicted,y))$coef,4)) %>%
     dplyr::ungroup() %>% as.data.frame()
   }
   list(train_fit_summary=train_fit_summary, best_pred_df=best_pred_df,train_pred_summary=train_pred_summary,df_predicted=df_predicted )
